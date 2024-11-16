@@ -119,6 +119,52 @@ from lerobot.scripts.push_dataset_to_hub import (
     save_meta_data,
 )
 
+class SimRobotController:
+    def __init__(self, env):
+        self.env = env
+        self.num_joints = 6  # MOSS arm joints
+        
+        # Define step size for each joint (in radians)
+        self.delta = 0.2  # Small increment in radians
+        
+        # Initialize environment
+        obs, _ = self.env.reset()
+        self.current_positions = obs['arm_qpos'].copy()
+        
+        # Initialize action vector
+        self.action = np.zeros(6)
+        
+    def move_joint(self, joint_idx, direction):
+        """
+        Move a specific joint up or down by delta amount
+        joint_idx: 0-5 for the 6 joints
+        direction: 1 for up, -1 for down
+        """
+        if not 0 <= joint_idx < self.num_joints:
+            return
+            
+        print(f"Old position {self.current_positions}")
+            
+        # Update the action for the specified joint
+        self.action[joint_idx] += direction * self.delta
+        
+        # Apply the action to the environment
+        obs, reward, terminated, truncated, info = self.env.step(self.action)
+        
+        print(f"Actual new position {obs['arm_qpos']}")
+        print(f"Delta achieved: {obs['arm_qpos'] - self.current_positions}")
+        
+        self.current_positions = obs['arm_qpos'].copy()
+        
+        return obs, reward, terminated, truncated, info
+
+    def get_state(self):
+        """Get current state of the robot"""
+        return {
+            'joint_positions': self.current_positions,
+        }
+
+
 ########################################################################################
 # Utilities
 ########################################################################################
@@ -292,20 +338,54 @@ def create_rl_hf_dataset(data_dict):
 
 
 def teleoperate(env, robot: Robot, teleop_time_s=None, **kwargs):    
+    print("Starting teleoperation...")
+    print("Initializing environment...")
     env = env()
+    print("Environment initialized")
+    print("Resetting environment...")
     env.reset()
+    print("Environment reset complete")
     
+    print("Initializing robot control...")
     read_leader, command_queue = init_read_leader(robot, **kwargs)
+    print("Robot control initialized")
+    
     start_teleop_t = time.perf_counter() 
+    print("Starting robot control thread...")
     read_leader.start()
+    print("Robot control thread started")
+    
     while True:
+        print(command_queue.get())
         action = command_queue.get()
-        env.step(np.expand_dims(action, 0))
+        env_output = env.step(np.expand_dims(action, 0))
+        print(env_output)
         if teleop_time_s is not None and time.perf_counter() - start_teleop_t > teleop_time_s:
             read_leader.terminate()
             command_queue.close()
             print("Teleoperation processes finished.")
             break
+
+
+# [ 0.37624493,  0.46451855, -0.23882234, -1.5267652 ,  0.5921108 ,-1.5572368 ]
+
+# Action: [-0.07363108  0.37122335 -0.15339808 -0.28838839  1.34683513 -1.5646604 ]
+
+# [0.3464791 ,  0.45098224, -0.2059204 , -1.4997264 ,  0.61950463, -1.5710245 ]
+
+# - - - - - - 
+
+"""
+a [-0.0720971   0.35588354 -0.21935925 -0.30833014  1.37751475 -1.56159244]
+p [ 0.5734787,  0.5301687, -0.4736155, -1.7015872,  0.41436982, -1.4325362]
+
+a [-0.07363108  0.35281558 -0.21629129 -0.30526218  1.37751475 -1.56159244]
+p [ 0.5466046 ,  0.5241459 , -0.44077185, -1.678294  ,  0.4381283 ,-1.4492462] 
+
+[-0.07516506  0.3512816  -0.20248546 -0.29605829  1.37751475 -1.56159244]
+[ 0.5192689 , 0.51694244, -0.40768024, -1.6544074 , 0.46246415,-1.4667841]
+
+"""
 
 def record(
     env, 
@@ -673,6 +753,67 @@ def replay(env,
         busy_wait(5)
 
 
+def control(env_fn, robot: Robot | None = None, **kwargs):
+    print("Initializing environment...")
+    env = env_fn()
+    print("Environment initialized")
+    
+    controller = SimRobotController(env)
+    print("\nControl Commands:")
+    print("1-6: Select joint")
+    print("+ : Move selected joint up")
+    print("- : Move selected joint down")
+    print("s : Stop current movement")
+    print("q : Quit")
+    
+    selected_joint = 0  # Default to first joint
+    last_command = None
+    
+    import sys
+    import select
+    import tty
+    import termios
+
+    # Set up terminal for non-blocking input
+    old_settings = termios.tcgetattr(sys.stdin)
+    tty.setcbreak(sys.stdin.fileno())
+    
+    try:
+        while True:
+            # Check if there's input available
+            if select.select([sys.stdin], [], [], 0.0)[0]:
+                key = sys.stdin.read(1)
+                
+                if key == 'q':
+                    break
+                elif key in ['1', '2', '3', '4', '5', '6']:
+                    selected_joint = int(key) - 1
+                    last_command = None  # Stop current movement when changing joint
+                    print(f"\nSelected joint {selected_joint + 1}")
+                elif key == '+':
+                    last_command = (selected_joint, 1)
+                elif key == '-':
+                    last_command = (selected_joint, -1)
+                elif key == 's':
+                    last_command = None
+                    print("\nStopped movement")
+            
+            # Execute last command if there is one
+            if last_command is not None:
+                joint, direction = last_command
+                controller.move_joint(joint, direction)
+                last_command = (1,0)
+            
+            # Display current state
+            state = controller.get_state()
+            print(f"\rCurrent Joint Positions: {state['joint_positions']}, Selected Joint: {selected_joint + 1}", end="")
+            
+    finally:
+        # Restore terminal settings
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+    
+    env.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -783,6 +924,9 @@ if __name__ == "__main__":
     )
 
     parser_replay = subparsers.add_parser("replay", parents=[base_parser])
+    
+    parser_replay = subparsers.add_parser("control", parents=[base_parser])
+    
     parser_replay.add_argument(
         "--fps", type=none_or_int, default=None, help="Frames per second (set to None to disable)"
     )
@@ -832,22 +976,24 @@ if __name__ == "__main__":
     if control_mode == "teleoperate":
         teleoperate(env_fn, robot, **kwargs)
 
-    elif control_mode == "record":
-        pretrained_policy_name_or_path = args.pretrained_policy_name_or_path
-        policy_overrides = args.policy_overrides
-        del kwargs["pretrained_policy_name_or_path"]
-        del kwargs["policy_overrides"]
+    # elif control_mode == "record":
+    #     pretrained_policy_name_or_path = args.pretrained_policy_name_or_path
+    #     policy_overrides = args.policy_overrides
+    #     del kwargs["pretrained_policy_name_or_path"]
+    #     del kwargs["policy_overrides"]
 
-        if pretrained_policy_name_or_path is not None:
-            pretrained_policy_path = get_pretrained_policy_path(pretrained_policy_name_or_path)
-            kwargs["policy_cfg"] = init_hydra_config(pretrained_policy_path / "config.yaml", policy_overrides)
-            kwargs["policy"] = make_policy(hydra_cfg=kwargs["policy_cfg"], pretrained_policy_name_or_path=pretrained_policy_path)
+    #     if pretrained_policy_name_or_path is not None:
+    #         pretrained_policy_path = get_pretrained_policy_path(pretrained_policy_name_or_path)
+    #         kwargs["policy_cfg"] = init_hydra_config(pretrained_policy_path / "config.yaml", policy_overrides)
+    #         kwargs["policy"] = make_policy(hydra_cfg=kwargs["policy_cfg"], pretrained_policy_name_or_path=pretrained_policy_path)
 
-        record(env_fn, robot, **kwargs)
+    #     record(env_fn, robot, **kwargs)
 
-    elif control_mode == "replay":
-        replay(env_fn, **kwargs)
+    # elif control_mode == "replay":
+    #     replay(env_fn, **kwargs)
 
+    if control_mode == "control":
+        control(env_fn, robot, **kwargs)
     else:
         raise ValueError(f"Invalid control mode: '{control_mode}', only valid modes are teleoperate, record and replay." )
 
@@ -855,3 +1001,6 @@ if __name__ == "__main__":
         # Disconnect manually to avoid a "Core dump" during process
         # termination due to camera threads not properly exiting.
         robot.disconnect()
+        
+        
+        
