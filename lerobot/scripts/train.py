@@ -135,8 +135,8 @@ def update_policy(
 
     # Optimizer's gradients are already unscaled, so scaler.step does not unscale them,
     # although it still skips optimizer.step() if the gradients contain infs or NaNs.
-    with lock if lock is not None else nullcontext():
-        grad_scaler.step(optimizer)
+    #with lock if lock is not None else nullcontext():
+    grad_scaler.step(optimizer)
     # Updates the scale for next iteration.
     grad_scaler.update()
 
@@ -311,6 +311,11 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
 
     logging.info("make_dataset")
     offline_dataset = make_dataset(cfg)
+
+    remove_indices=['observation.images.image_top', 'observation.velocity', 'seed']
+    # temp fix michel_Aractingi TODO
+    offline_dataset.hf_dataset = offline_dataset.hf_dataset.remove_columns(remove_indices)
+
     if isinstance(offline_dataset, MultiLeRobotDataset):
         logging.info(
             "Multiple datasets were provided. Applied the following index mapping to the provided datasets: "
@@ -504,6 +509,9 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
         num_samples=len(concat_dataset),
         replacement=True,
     )
+    
+    # TODO michel_aractingi temp fix for incosistent keys
+
     dataloader = torch.utils.data.DataLoader(
         concat_dataset,
         batch_size=cfg.training.batch_size,
@@ -538,8 +546,8 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
 
         def sample_trajectory_and_update_buffer():
             nonlocal rollout_start_seed
-            with lock:
-                online_rollout_policy.load_state_dict(policy.state_dict())
+            #with lock:
+            online_rollout_policy.load_state_dict(policy.state_dict())
             online_rollout_policy.eval()
             start_rollout_time = time.perf_counter()
             with torch.no_grad():
@@ -556,37 +564,35 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
                 )
             online_rollout_s = time.perf_counter() - start_rollout_time
 
-            with lock:
-                start_update_buffer_time = time.perf_counter()
-                online_dataset.add_data(eval_info["episodes"])
-
-                # Update the concatenated dataset length used during sampling.
-                concat_dataset.cumulative_sizes = concat_dataset.cumsum(concat_dataset.datasets)
-
-                # Update the sampling weights.
-                sampler.weights = compute_sampler_weights(
-                    offline_dataset,
-                    offline_drop_n_last_frames=cfg.training.get("drop_n_last_frames", 0),
-                    online_dataset=online_dataset,
-                    # +1 because online rollouts return an extra frame for the "final observation". Note: we don't have
-                    # this final observation in the offline datasets, but we might add them in future.
-                    online_drop_n_last_frames=cfg.training.get("drop_n_last_frames", 0) + 1,
-                    online_sampling_ratio=cfg.training.online_sampling_ratio,
-                )
-                sampler.num_samples = len(concat_dataset)
-
-                update_online_buffer_s = time.perf_counter() - start_update_buffer_time
+            #with lock:
+            start_update_buffer_time = time.perf_counter()
+            online_dataset.add_data(eval_info["episodes"])
+            # Update the concatenated dataset length used during sampling.
+            concat_dataset.cumulative_sizes = concat_dataset.cumsum(concat_dataset.datasets)
+            # Update the sampling weights.
+            sampler.weights = compute_sampler_weights(
+                offline_dataset,
+                offline_drop_n_last_frames=cfg.training.get("drop_n_last_frames", 0),
+                online_dataset=online_dataset,
+                # +1 because online rollouts return an extra frame for the "final observation". Note: we don't have
+                # this final observation in the offline datasets, but we might add them in future.
+                online_drop_n_last_frames=cfg.training.get("drop_n_last_frames", 0) + 1,
+                online_sampling_ratio=cfg.training.online_sampling_ratio,
+            )
+            sampler.num_samples = len(concat_dataset)
+            update_online_buffer_s = time.perf_counter() - start_update_buffer_time
 
             return online_rollout_s, update_online_buffer_s
 
-        future = executor.submit(sample_trajectory_and_update_buffer)
+        # TODO remove parallelization for sim
+        #future = executor.submit(sample_trajectory_and_update_buffer)
         # If we aren't doing async rollouts, or if we haven't yet gotten enough examples in our buffer, wait
         # here until the rollout and buffer update is done, before proceeding to the policy update steps.
         if (
             not cfg.training.do_online_rollout_async
             or len(online_dataset) <= cfg.training.online_buffer_seed_size
         ):
-            online_rollout_s, update_online_buffer_s = future.result()
+            online_rollout_s, update_online_buffer_s = sample_trajectory_and_update_buffer()#future.result()
 
         if len(online_dataset) <= cfg.training.online_buffer_seed_size:
             logging.info(
@@ -596,12 +602,15 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
 
         policy.train()
         for _ in range(cfg.training.online_steps_between_rollouts):
-            with lock:
-                start_time = time.perf_counter()
-                batch = next(dl_iter)
-                dataloading_s = time.perf_counter() - start_time
+            #with lock:
+            start_time = time.perf_counter()
+            batch = next(dl_iter)
+            dataloading_s = time.perf_counter() - start_time
 
             for key in batch:
+                # TODO michel aractingi convert float64 to float32 for mac
+                if batch[key].dtype == torch.float64:
+                    batch[key] = batch[key].float()
                 batch[key] = batch[key].to(cfg.device, non_blocking=True)
 
             train_info = update_policy(
@@ -619,8 +628,8 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
             train_info["online_rollout_s"] = online_rollout_s
             train_info["update_online_buffer_s"] = update_online_buffer_s
             train_info["await_update_online_buffer_s"] = await_update_online_buffer_s
-            with lock:
-                train_info["online_buffer_size"] = len(online_dataset)
+            #with lock:
+            train_info["online_buffer_size"] = len(online_dataset)
 
             if step % cfg.training.log_freq == 0:
                 log_train_info(logger, train_info, step, cfg, online_dataset, is_online=True)
@@ -634,10 +643,10 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
 
         # If we're doing async rollouts, we should now wait until we've completed them before proceeding
         # to do the next batch of rollouts.
-        if future.running():
-            start = time.perf_counter()
-            online_rollout_s, update_online_buffer_s = future.result()
-            await_update_online_buffer_s = time.perf_counter() - start
+        #if future.running():
+        #start = time.perf_counter()
+        #online_rollout_s, update_online_buffer_s = sample_trajectory_and_update_buffer()#future.result()
+        #await_update_online_buffer_s = time.perf_counter() - start
 
         if online_step >= cfg.training.online_steps:
             break

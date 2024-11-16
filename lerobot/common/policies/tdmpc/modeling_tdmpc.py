@@ -137,6 +137,8 @@ class TDMPCPolicy(
         if self._use_image:
             batch = dict(batch)  # shallow copy so that adding a key doesn't modify the original
             batch["observation.image"] = batch[self.input_image_key]
+            #TODO michel_aractingi temp fix to remove before merge
+            del batch[self.input_image_key]
 
         self._queues = populate_queues(self._queues, batch)
 

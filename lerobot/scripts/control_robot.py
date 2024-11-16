@@ -504,6 +504,7 @@ if __name__ == "__main__":
     control_mode = args.mode
     robot_path = args.robot_path
     robot_overrides = args.robot_overrides
+    
     kwargs = vars(args)
     del kwargs["mode"]
     del kwargs["robot_path"]

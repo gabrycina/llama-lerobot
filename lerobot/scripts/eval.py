@@ -158,14 +158,14 @@ def rollout(
         action = action.to("cpu").numpy()
         assert action.ndim == 2, "Action dimensions should be (batch, action_dim)"
 
-        # Apply the next action.
+        # Apply the next action. TODO (michel_aractingi) temp fix
         observation, reward, terminated, truncated, info = env.step(action)
         if render_callback is not None:
             render_callback(env)
 
         # VectorEnv stores is_success in `info["final_info"][env_index]["is_success"]`. "final_info" isn't
         # available of none of the envs finished.
-        if "final_info" in info:
+        if  "final_info" in info:
             successes = [info["is_success"] if info is not None else False for info in info["final_info"]]
         else:
             successes = [False] * env.num_envs
