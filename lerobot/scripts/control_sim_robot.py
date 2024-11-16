@@ -742,7 +742,6 @@ def control(env_fn, robot: Robot | None = None, llama: LlamaPolicy | None = None
         while True:
             count += 1
             if count % 50 == 0:
-                print("Calling llama")
                 result = llama.chat_completion()
 
                 if result["action"] == "down":
