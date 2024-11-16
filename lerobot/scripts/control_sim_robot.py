@@ -119,7 +119,9 @@ from lerobot.scripts.push_dataset_to_hub import (
     save_meta_data,
 )
 from mindgrip.sim_robot_controller import SimRobotController
+from mindgrip.llama import LlamaPolicy
 
+print("Imported all modules")
 ########################################################################################
 # Utilities
 ########################################################################################
@@ -708,7 +710,7 @@ def replay(env,
         busy_wait(5)
 
 
-def control(env_fn, robot: Robot | None = None, **kwargs):
+def control(env_fn, robot: Robot | None = None, llama: LlamaPolicy | None = None, **kwargs):
     print("Initializing environment...")
     env = env_fn()
     print("Environment initialized")
@@ -733,40 +735,45 @@ def control(env_fn, robot: Robot | None = None, **kwargs):
     old_settings = termios.tcgetattr(sys.stdin)
     tty.setcbreak(sys.stdin.fileno())
     
+    joint = 0
+    direction = 0
+    count = 0
     try:
         while True:
-            # Check if there's input available
+            count += 1
+            if count % 200 == 0:
+                print("Calling llama")
+                # llama.chat_completion()
+
             if select.select([sys.stdin], [], [], 0.0)[0]:
                 key = sys.stdin.read(1)
                 
                 if key == 'q':
                     break
                 elif key in ['1', '2', '3', '4', '5', '6']:
-                    selected_joint = int(key) - 1
-                    last_command = None  # Stop current movement when changing joint
-                    print(f"\nSelected joint {selected_joint + 1}")
-                elif key == '+':
-                    last_command = (selected_joint, 1)
+                    joint = int(key) - 1
+                    print(f"\nSelected joint {int(key)}")
+                elif key == '=':
+                    direction = 1
                 elif key == '-':
-                    last_command = (selected_joint, -1)
+                    direction = -1
                 elif key == 's':
-                    last_command = None
+                    direction = 0 
                     print("\nStopped movement")
             
             # Execute last command if there is one
-            if last_command is not None:
-                joint, direction = last_command
-                controller.move_joint(joint, direction)
-                last_command = (1,0)
+            controller.move_joint(joint, direction)
+            direction = 0
             
             # Display current state
             state = controller.get_state()
-            print(f"\rCurrent Joint Positions: {state['joint_positions']}, Selected Joint: {selected_joint + 1}", end="")
+            # print(f"\rCurrent Joint Positions: {state['joint_positions']}, Selected Joint: {selected_joint + 1}", end="")
             
     finally:
         # Restore terminal settings
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
     
+    llama.camera.release()
     env.close()
 
 
@@ -948,7 +955,8 @@ if __name__ == "__main__":
     #     replay(env_fn, **kwargs)
 
     if control_mode == "control":
-        control(env_fn, robot, **kwargs)
+        llama = LlamaPolicy()
+        control(env_fn, robot, llama, **kwargs)
     else:
         raise ValueError(f"Invalid control mode: '{control_mode}', only valid modes are teleoperate, record and replay." )
 

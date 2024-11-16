@@ -6,7 +6,7 @@ class SimRobotController:
         self.num_joints = 6  # MOSS arm joints
         
         # Define step size for each joint (in radians)
-        self.delta = 0.2  # Small increment in radians
+        self.delta = 0.01  # Small increment in radians
         
         # Initialize environment
         obs, _ = self.env.reset()
@@ -24,7 +24,7 @@ class SimRobotController:
         if not 0 <= joint_idx < self.num_joints:
             return
             
-        print(f"Old position {self.current_positions}")
+        # print(f"Old position {self.current_positions}")
             
         # Update the action for the specified joint
         self.action[joint_idx] += direction * self.delta
@@ -32,8 +32,8 @@ class SimRobotController:
         # Apply the action to the environment
         obs, reward, terminated, truncated, info = self.env.step(self.action)
         
-        print(f"Actual new position {obs['arm_qpos']}")
-        print(f"Delta achieved: {obs['arm_qpos'] - self.current_positions}")
+        # print(f"Actual new position {obs['arm_qpos']}")
+        # print(f"Delta achieved: {obs['arm_qpos'] - self.current_positions}")
         
         self.current_positions = obs['arm_qpos'].copy()
         
