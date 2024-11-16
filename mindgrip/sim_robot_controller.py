@@ -6,7 +6,7 @@ class SimRobotController:
         self.num_joints = 6  # MOSS arm joints
         
         # Define step size for each joint (in radians)
-        self.delta = 0.01  # Small increment in radians
+        self.delta = 0.2  # Small increment in radians
         
         # Initialize environment
         obs, _ = self.env.reset()

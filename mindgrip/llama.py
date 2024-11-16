@@ -3,6 +3,7 @@ import time
 import base64
 import cv2
 import time
+import json
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -17,9 +18,14 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 BASIC_PROMPT = """
     You are the robot controller:
-    You have 4 functions to move the robot 'up', 'down', 'left', 'right', these functions move the end effector in the specified direction.
-    I want you to move the robot to get closer to the red box, only closer, do not perform any other action.
-    Answer in json format containg a list of functions like: {"actions": ['up', 'up', 'right', 'right', 'down']} or {"actions": ['down']}
+    You have 4 functions to move the robot 'up', 'down', 'rotate_left', 'rotate_right', these functions move the end effector in the specified direction.
+    I want you to move the robot to get closer to the red cube, only closer, do not perform any other action.
+    Strategies you should use:
+    - if the end effector is higher than the cube use "down"
+    - if the cube is to the left of the end effector use "rotate_left", rotate is always referring to the point of view of the robot
+    - if the cube is to the right of the end effector use "rotate_right", rotate is always referring to the point of view of the robot
+    If you see that your actions are moving you farder from the cube, you should reverse the action.
+    Answer in json format containig the name of the funtion: {"action": "rotate_left"} or {"action": "down"}
 """
 
 DESCRIPTION_PROMPT = """
@@ -78,7 +84,7 @@ class LlamaPolicy:
             temperature=0.0
         )
 
-        result = chat_completion.choices[0].message.content
+        result = json.loads(chat_completion.choices[0].message.content)
         print(result)
         return result 
 

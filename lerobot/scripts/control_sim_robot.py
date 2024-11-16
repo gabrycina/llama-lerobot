@@ -741,9 +741,26 @@ def control(env_fn, robot: Robot | None = None, llama: LlamaPolicy | None = None
     try:
         while True:
             count += 1
-            if count % 200 == 0:
+            if count % 50 == 0:
                 print("Calling llama")
-                # llama.chat_completion()
+                result = llama.chat_completion()
+
+                if result["action"] == "down":
+                    joint = 2
+                    direction = 1
+                elif result["action"] == "up":
+                    joint = 2
+                    direction = -1
+                elif result["action"] == "rotate_left":
+                    joint = 0
+                    direction = -1
+                elif result["action"] == "rotate_right":
+                    joint = 0
+                    direction = 1
+                else:
+                    print("Invalid action")
+
+
 
             if select.select([sys.stdin], [], [], 0.0)[0]:
                 key = sys.stdin.read(1)
