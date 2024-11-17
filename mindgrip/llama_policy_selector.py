@@ -28,6 +28,7 @@ from pathlib import Path
 import glob
 import sys
 from live_advance import LiveAdvance
+import argparse
 
 # load_dotenv("../.env")
 
@@ -203,21 +204,23 @@ def select_policy(user_input):
     return "none"
 
 if __name__ == "__main__":
-    # engine = pyttsx3.init()
-    # engine.say("Dai forza voglio sti cazzo di 25k")
-    # engine.runAndWait()
+    # Add argument parser
+    parser = argparse.ArgumentParser(description='Robot Control Script')
+    parser.add_argument('--mode', type=str, choices=['mind', 'llama'], 
+                       default='llama', help='Control mode (default: llama)')
+    
+    args = parser.parse_args()
+    
     controller = RealRobotController(camera_id=1)
     
-    mode = "mind"
-    if mode == "mind":
+    if args.mode == "mind":
         your_app_client_id = '7qSK1Gf5OYPKmITc8m7ek6oD4mUL3XqJ8hWVVGnK'
         your_app_client_secret = 'xNXRm4oadS3NUKv9mOhzzKhbzcW4caesGIvgi3uHaTWA9tTLLBm4WBzzUX1QKe6jLtqrhCrjAE87a3398FzS415prPUlh6cX164wE2WEjqRbrOSQQWugCQPrIVP5ccdI'
 
         l = LiveAdvance(your_app_client_id, your_app_client_secret)
 
         trained_profile_name = 'my-mental-commands' 
-        l.start(trained_profile_name)
-
+        l.start(trained_profile_name, controller)
     else:    
         for i in range(5):
             result = controller.llama.chat_completion()
