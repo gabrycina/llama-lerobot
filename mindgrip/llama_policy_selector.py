@@ -221,13 +221,28 @@ if __name__ == "__main__":
     run_streamlit()
     
     if args.mode == "mind":
-        your_app_client_id = '7qSK1Gf5OYPKmITc8m7ek6oD4mUL3XqJ8hWVVGnK'
-        your_app_client_secret = 'xNXRm4oadS3NUKv9mOhzzKhbzcW4caesGIvgi3uHaTWA9tTLLBm4WBzzUX1QKe6jLtqrhCrjAE87a3398FzS415prPUlh6cX164wE2WEjqRbrOSQQWugCQPrIVP5ccdI'
+        try:
+            your_app_client_id = '7qSK1Gf5OYPKmITc8m7ek6oD4mUL3XqJ8hWVVGnK'
+            your_app_client_secret = 'xNXRm4oadS3NUKv9mOhzzKhbzcW4caesGIvgi3uHaTWA9tTLLBm4WBzzUX1QKe6jLtqrhCrjAE87a3398FzS415prPUlh6cX164wE2WEjqRbrOSQQWugCQPrIVP5ccdI'
 
-        l = LiveAdvance(your_app_client_id, your_app_client_secret)
+            # Initialize LiveAdvance with debug output
+            l = LiveAdvance(your_app_client_id, your_app_client_secret)
+            print("LiveAdvance initialized")
 
-        trained_profile_name = 'my-mental-commands' 
-        l.start(trained_profile_name, controller)
+            trained_profile_name = 'my-mental-commands'
+            print(f"Starting with profile: {trained_profile_name}")
+            
+            # Pass the controller and wait for connection
+            l.start(trained_profile_name, controller)
+            print("Mind control started")
+            
+            # Keep the main thread alive
+            while True:
+                time.sleep(1)
+                
+        except Exception as e:
+            print(f"Error in mind control mode: {e}")
+            print("Make sure the Emotiv Launcher is running and the headset is connected")
     else:    
         for i in range(1):
             result = controller.llama.chat_completion()
