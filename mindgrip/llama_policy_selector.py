@@ -24,6 +24,8 @@ import numpy as np
 from groq import Groq
 import wave
 import io
+from pathlib import Path
+import glob
 
 # load_dotenv("../.env")
 
@@ -49,6 +51,7 @@ def do_control_loop(policy_obj, robot, display_cameras = True):
     )
 
 def init_robot():
+    engine = pyttsx3.init()
     robot_cfg = init_hydra_config("../lerobot/configs/robot/moss.yaml", []) # la lista rappresenta robot_overrides
     robot = make_robot(robot_cfg)
     robot.connect()
@@ -68,6 +71,11 @@ def init_robot():
     while True:
         transcript = listen_to_user()
         print(transcript)
+        description = describe_the_scene()
+        print(f"Description: {description}")
+        if description is not None:
+            engine.say(description)
+            engine.runAndWait()
         policy = select_policy(transcript)
         print(policy)
         do_control_loop(policies[policy], robot)
@@ -108,6 +116,57 @@ def listen_to_user():
         
     except Exception as e:
         print(f"Error during transcription: {e}")
+        return None
+
+def describe_the_scene():
+    capture_dir = Path("assets/capture")
+    
+    # Check if directory exists
+    if not capture_dir.exists():
+        print("Error: assets/capture directory not found")
+        return None
+    
+    # Get list of capture files and sort by name (which includes timestamp)
+    captures = glob.glob(str(capture_dir / "capture_*.jpg"))
+    if not captures:
+        print("No captures found in directory")
+        return None
+    
+    # Get most recent file
+    latest_capture = max(captures)
+    
+    # Encode image to base64
+    with open(latest_capture, "rb") as image_file:
+        image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
+    
+    # Initialize Groq client
+    client = Groq(api_key=GROQ_API_KEY)
+    
+    DESCRIPTION_PROMPT = """
+    Describe what you see in this image in a brief, clear way. 
+    Focus on the main objects and their spatial relationships.
+    Keep your response under 2 sentences.
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": DESCRIPTION_PROMPT},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+                    ],
+                }
+            ],
+            model="llama-3.2-90b-vision-preview",
+            temperature=0.2
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        print(f"Error getting scene description: {e}")
         return None
 
 def select_policy(user_input):
