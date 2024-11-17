@@ -34,7 +34,7 @@ print(GROQ_API_KEY)
 # }
 
 
-def do_control_loop(policy_obj, robot,models, policies, display_cameras = True):
+def do_control_loop(policy_obj, robot, display_cameras = True):
     control_loop(
         robot=robot,
         control_time_s=policy_obj["control_time_s"],
@@ -61,6 +61,11 @@ def init_robot():
         policy_overrides = ["device=cpu"] # dicono loro
         policy, policy_fps, device, use_amp = init_policy(model["repo_id"], policy_overrides)
         policies[model_name] = ({"policy": policy, "policy_fps": policy_fps, "device": device, "use_amp": use_amp, "control_time_s": model["control_time_s"]})
+
+    transcript = listen_to_user()
+    print(transcript)
+    policy = select_policy(transcript)
+    do_control_loop(policies[policy], robot)
 
 def listen_to_user():
     # Audio recording parameters
@@ -134,7 +139,4 @@ if __name__ == "__main__":
     # engine = pyttsx3.init()
     # engine.say("Dai forza voglio sti cazzo di 25k")
     # engine.runAndWait()
-    transcript = listen_to_user()
-    print(transcript)
-    print(select_policy(transcript))
-        
+    init_robot()
