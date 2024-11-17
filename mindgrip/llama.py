@@ -15,45 +15,27 @@ load_dotenv("../.env")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 BASIC_PROMPT = """
-You are controlling a robotic arm in a simulation environment. Your task is to minimize the Euclidean distance between the robot's end effector and the target cube and end up pushing the red block.
+You are controlling a robotic arm in a simulation environment. Your task is to minimize the Euclidean distance between the robot's end effector and the target is the brown cup. Move the arm closer to it and push it.
 
 Important spatial context:
 - You are viewing the simulation from a third-person perspective
-- The robot arm is white/gray in color
-- The target is a red cube
 - Available actions:
   * "up": Move end effector upward (+Z axis)
   * "down": Move end effector downward (-Z axis)
   * "rotate_left": Rotate counter-clockwise
   * "rotate_right": Rotate clockwise
 
-Analysis process:
-1. Locate both the end effector and the red cube
-2. Estimate the current Euclidean distance between them
-3. Determine which single action would most reduce this distance:
-   - Consider vertical distance (up/down)
-   - Consider angular distance (rotate_left/right)
-   - Choose the action that will result in the largest distance reduction
-
-You must respond with a JSON object containing exactly ONE action that will minimize the Euclidean distance:
-{"action": "up"} or
-{"action": "down"} or
-{"action": "rotate_left"} or
-{"action": "rotate_right"}
-
-Think step by step:
-1. Where is the end effector relative to the cube?
-2. Which dimension (vertical or rotational) has the larger distance?
-3. Which single action would most reduce the overall Euclidean distance?
+You must respond JUST with a JSON object containing exactly ONE action that will minimize the Euclidean distance:
+{{"action": "up"}} or
+{{"action": "down"}} or
+{{"action": "rotate_left"}} or
+{{"action": "rotate_right"}}
 """
 
 class LlamaPolicy:
-    def __init__(self, mode="mujoco"):
-        """Initialize the policy with either 'webcam' or 'mujoco' mode"""
+    def __init__(self, camera_id=0):
         self.client = Groq(api_key=GROQ_API_KEY)
-        self.mode = mode
-        self.camera = self.init_camera(2) if mode == "webcam" else None
-        self.action_history = []
+        self.camera = self.init_camera(camera_id)
 
     def init_camera(self, device_id: int = 0):
         """Initialize webcam"""
@@ -137,7 +119,7 @@ class LlamaPolicy:
             ],
             response_format={"type": "json_object"},
             model="llama-3.2-90b-vision-preview",
-            temperature=0.1
+            temperature=0.5
         )
 
         result = json.loads(chat_completion.choices[0].message.content)

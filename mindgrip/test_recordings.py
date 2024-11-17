@@ -1,8 +1,12 @@
 import torch
 import time
+import streamlit as st
+import threading
+import subprocess
 from transformers import pipeline
 from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
 from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
+from mindgrip.llama import LlamaPolicy
 
 leader_arms = {
         "main": FeetechMotorsBus(
@@ -34,6 +38,10 @@ follower_arms = {
         ),
     }
 
+def run_streamlit():
+    """Run the Streamlit app in a separate process"""
+    subprocess.Popen(["streamlit", "run", "mindgrip/streamlit_app.py"])
+
 class RealRobotController:
     def __init__(self):
         self.robot = ManipulatorRobot(
@@ -45,40 +53,53 @@ class RealRobotController:
         
         self.robot.connect()
         
-        # Define smaller relative movements for incremental control
-        # Note: 50 steps ≈ 4.4 degrees (4096 steps = 360 degrees)
+        print("Moving to zero position...")
+        # Initialize to zero position with exact calibration values
+        zero_position = {
+            'shoulder_pan': 30,    # From calibration
+            'shoulder_lift': 90,    # From calibration
+            'elbow_flex': 70,      # From calibration
+            'wrist_flex': 20,      # From calibration
+            'wrist_roll': 10,      # From calibration
+            'gripper': 0         # From calibration
+        }
+        
+        # Move to zero position one joint at a time
+        for motor_name, position in zero_position.items():
+            self.robot.follower_arms['main'].write("Goal_Position", [position], [motor_name])
+            time.sleep(1.0)  # Longer delay for safer movement
+        
+        # Define very gentle relative movements
         self.relative_actions = {
             'up': {
-                'shoulder_lift': -50,   # Small lift
-                'elbow_flex': -50,      # Small elbow compensation
-                'wrist_flex': 50        # Keep end effector level
+                'shoulder_lift': -10,    # Very gentle lift
+                'elbow_flex': -15,       # Small elbow compensation
+                'wrist_flex': 10,        # Keep end effector level
+                'wrist_roll': -5         # Slight roll compensation
             },
             'down': {
-                'shoulder_lift': 50,     # Small lower
-                'elbow_flex': 50,        # Small elbow compensation
-                'wrist_flex': -50        # Keep end effector level
+                'shoulder_lift': 10,     # Very gentle lower
+                'elbow_flex': 15,        # Small elbow compensation
+                'wrist_flex': -10,       # Keep end effector level
+                'wrist_roll': 5          # Slight roll compensation
             },
-            'left': {
-                'shoulder_pan': 50       # Small rotate left
+            'rotate_left': {
+                'shoulder_pan': 15       # Very gentle rotate
             },
-            'right': {
-                'shoulder_pan': -50      # Small rotate right
-            },
-            'forward': {
-                'shoulder_lift': -25,    # Tiny shoulder lift
-                'elbow_flex': -75,       # Small extend
-                'wrist_flex': 25         # Keep end effector level
-            },
-            'backward': {
-                'shoulder_lift': 25,     # Tiny shoulder drop
-                'elbow_flex': 75,        # Small retract
-                'wrist_flex': -25        # Keep end effector level
+            'rotate_right': {
+                'shoulder_pan': -15      # Very gentle rotate
             }
         }
         
         # Slower movement speed for more control
         self.movement_speed = 50  # Range: 0-1023
         
+        # Add reference to LlamaPolicy for camera access
+        self.llama = LlamaPolicy(camera_id=2)
+        
+        # Start Streamlit
+        run_streamlit()
+
     def execute_relative_movement(self, action_name):
         """Execute a relative movement from current position"""
         if action_name not in self.relative_actions:
@@ -109,8 +130,8 @@ class RealRobotController:
         command_mapping = {
             'up': 'up',
             'down': 'down',
-            'left': 'left',
-            'right': 'right',
+            'rotate_left': 'rotate_left',
+            'rotate_right': 'rotate_right',
             'forward': 'forward',
             'backward': 'backward'
         }
@@ -129,87 +150,17 @@ def main():
     
     print("\nReady to accept commands!")
     print("Available commands: up, down, left, right, forward, backward")
+    print("Camera feed available at http://localhost:8501")
     
-    while True:
-        command = input("\nEnter command (or 'quit' to exit): ")
-        if command.lower() == 'quit':
-            break
-        controller.handle_command(command)
+    for i in range(8):
+        result = controller.llama.chat_completion()
+        
+        if result["action"] in ["up", "down", "rotate_left", "rotate_right"]:
+            controller.handle_command(result["action"])
+        else:
+            print(f"Error {result} is not mapped ")
+        
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
-    
-    
-# def control(robot: Robot | None = None, **kwargs):
-#     print("Initializing robot...")
-#     if robot is None:
-#         raise ValueError("Robot must be provided")
-    
-#     controller = RealRobotController(robot)
-#     print("\nControl Commands:")
-#     print("1-6: Select joint")
-#     print("+ : Move selected joint up")
-#     print("- : Move selected joint down")
-#     print("s : Stop current movement")
-#     print("q : Quit")
-    
-#     selected_joint = 0  # Default to first joint
-#     last_command = None
-    
-#     import sys
-#     import select
-#     import tty
-#     import termios
-
-#     # Set up terminal for non-blocking input
-#     old_settings = termios.tcgetattr(sys.stdin)
-#     tty.setcbreak(sys.stdin.fileno())
-    
-#     try:
-#         while True:
-#             # Check if there's input available
-#             if select.select([sys.stdin], [], [], 0.0)[0]:
-#                 key = sys.stdin.read(1)
-                
-#                 if key == 'q':
-#                     break
-#                 elif key in ['1', '2', '3', '4', '5', '6']:
-#                     selected_joint = int(key) - 1
-#                     last_command = None  # Stop current movement when changing joint
-#                     print(f"\nSelected joint {selected_joint + 1}")
-#                 elif key == '+':
-#                     last_command = (selected_joint, 50)  # 50 steps ≈ 4.4 degrees
-#                 elif key == '-':
-#                     last_command = (selected_joint, -50)  # -50 steps ≈ -4.4 degrees
-#                 elif key == 's':
-#                     last_command = None
-#                     print("\nStopped movement")
-            
-#             # Execute last command if there is one
-#             if last_command is not None:
-#                 joint, steps = last_command
-#                 # Get current positions
-#                 current_positions = robot.follower_arms["main"].read("Present_Position")
-                
-#                 # Update position for selected joint
-#                 new_positions = current_positions.copy()
-#                 new_positions[joint] += steps
-                
-#                 # Ensure within safe limits (0 to 4096)
-#                 new_positions[joint] = max(0, min(4096, new_positions[joint]))
-                
-#                 # Execute movement
-#                 robot.follower_arms["main"].write("Goal_Position", new_positions)
-            
-#             # Display current state
-#             positions = robot.follower_arms["main"].read("Present_Position")
-#             print(f"\rCurrent Joint Positions: {positions}, Selected Joint: {selected_joint + 1}", end="")
-            
-#     finally:
-#         # Restore terminal settings
-#         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-#         robot.disconnect()
-
-# class RealRobotController:
-#     def __init__(self, robot):
-#         self.robot = robot
