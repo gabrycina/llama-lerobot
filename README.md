@@ -18,10 +18,15 @@ An open-source project combining [Llama 3.2 Vision model](https://about.fb.com/n
 - Precise motor control through LeRobot integration
 - Support for complex manipulation tasks
 
+### 🤗 Open-source Contributions
+- 2 fully-trained RL policies openly available [on huggingface](https://www.huggingface.com/fracapuano/moss-cup)
+- 20GB+ of human recorded data, openly shared with the community as [huggingface dataset]([url](https://www.huggingface.com/fracapuano/cup)
+
 ### 🧠 Brain-Computer Interface
 - Direct mind control of robotic arms using EMOTIV EEG headsets
 - Real-time neural signal processing
 - Built on the open Cortex API for BCI integration
+
 
 ## 🚀 Getting Started
 
