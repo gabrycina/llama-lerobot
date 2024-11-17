@@ -6,7 +6,8 @@ import subprocess
 from transformers import pipeline
 from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
 from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
-from mindgrip.llama import LlamaPolicy
+
+from llama import LlamaPolicy
 
 leader_arms = {
         "main": FeetechMotorsBus(
@@ -43,7 +44,7 @@ def run_streamlit():
     subprocess.Popen(["streamlit", "run", "mindgrip/streamlit_app.py"])
 
 class RealRobotController:
-    def __init__(self):
+    def __init__(self, camera_id=0):
         self.robot = ManipulatorRobot(
             robot_type="moss",
             calibration_dir="../.cache/calibration/moss",
@@ -95,7 +96,7 @@ class RealRobotController:
         self.movement_speed = 50  # Range: 0-1023
         
         # Add reference to LlamaPolicy for camera access
-        self.llama = LlamaPolicy(camera_id=2)
+        self.llama = LlamaPolicy(camera_id)
         
         # Start Streamlit
         run_streamlit()

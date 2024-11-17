@@ -42,7 +42,7 @@ BASIC_DESCRIPTION = "Describe what you see"
 
 class LlamaPolicy:
     def __init__(self, camera_id=0):
-        self.client = Groq(api_key=GROQ_API_KEY)
+        self.client = Groq(api_key="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")
         self.camera = self.init_camera(camera_id)
 
     def init_camera(self, device_id: int = 0):

@@ -2,9 +2,12 @@ from lerobot.common.robot_devices.robots.factory import make_robot
 from lerobot.common.utils.utils import init_hydra_config
 from lerobot.common.robot_devices.control_utils import init_policy, control_loop
 
+from test_recordings import RealRobotController
+
 import pyttsx3
 import base64
 import cv2
+import time
 
 from langchain_core.tools import tool
 
@@ -22,10 +25,9 @@ from groq import Groq
 import wave
 import io
 
-load_dotenv()
+# load_dotenv("../.env")
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-print(GROQ_API_KEY)
+GROQ_API_KEY = "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"
 
 # models = {
 #     "grab_sponge":  {"repo_id": "1g0rrr/grab_sponge", "control_time_s": 32},
@@ -52,20 +54,24 @@ def init_robot():
     robot.connect()
 
     models = {
-        "policy_name": {"repo_id": "user/model_name", "control_time_s": 0}
+        "pills-picking": {"repo_id": "fracapuano/moss-pills", "control_time_s": 100},
+        "cup-dragging": {"repo_id": "fracapuano/moss-cup", "control_time_s": 100}
     }
     policies = {}
    
     for model_name in models:
         model = models[model_name]
-        policy_overrides = ["device=cpu"] # dicono loro
+        policy_overrides = ["device=mps"] # dicono loro
         policy, policy_fps, device, use_amp = init_policy(model["repo_id"], policy_overrides)
         policies[model_name] = ({"policy": policy, "policy_fps": policy_fps, "device": device, "use_amp": use_amp, "control_time_s": model["control_time_s"]})
 
-    transcript = listen_to_user()
-    print(transcript)
-    policy = select_policy(transcript)
-    do_control_loop(policies[policy], robot)
+    while True:
+        transcript = listen_to_user()
+        print(transcript)
+        policy = select_policy(transcript)
+        print(policy)
+        do_control_loop(policies[policy], robot)
+        input("Next query")
 
 def listen_to_user():
     # Audio recording parameters
@@ -106,8 +112,8 @@ def listen_to_user():
 
 def select_policy(user_input):
     policies_info = {
-        "take_my_pills": "Take my pills closer to me",
-        "glass_of_water": "Get me a glass of water",
+        "pills-picking": "Reach for the box of my pills",
+        "cup-dragging": "Bring my glass of water closer to me",
     }
     
     client = Groq(api_key=GROQ_API_KEY)
@@ -139,4 +145,15 @@ if __name__ == "__main__":
     # engine = pyttsx3.init()
     # engine.say("Dai forza voglio sti cazzo di 25k")
     # engine.runAndWait()
+    controller = RealRobotController(camera_id=1)
+    for i in range(5):
+        result = controller.llama.chat_completion()
+        
+        if result["action"] in ["up", "down", "rotate_left", "rotate_right"]:
+            controller.handle_command(result["action"])
+        else:
+            print(f"Error {result} is not mapped ")
+        
+        time.sleep(1)
+
     init_robot()
