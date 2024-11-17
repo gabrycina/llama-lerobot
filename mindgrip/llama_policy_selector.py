@@ -1,36 +1,32 @@
+import sys
+import os
+import argparse
+import subprocess
+import time
+import base64
+import cv2
+import io
+import glob
+from pathlib import Path
+
+# Add cortex-example/python to Python path
+cortex_path = os.path.join(os.path.dirname(__file__), 'cortex-example', 'python')
+sys.path.append(cortex_path)
+
+# Now we can import LiveAdvance
+from live_advance import LiveAdvance
+
 from lerobot.common.robot_devices.robots.factory import make_robot
 from lerobot.common.utils.utils import init_hydra_config
 from lerobot.common.robot_devices.control_utils import init_policy, control_loop
-
 from test_recordings import RealRobotController
 
 import pyttsx3
-import base64
-import cv2
-import time
-
-from langchain_core.tools import tool
-
-from langchain.schema import SystemMessage
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    MessagesPlaceholder,
-)
 from dotenv import load_dotenv
-import os
 import sounddevice as sd
 import numpy as np
 from groq import Groq
 import wave
-import io
-from pathlib import Path
-import glob
-import sys
-from live_advance import LiveAdvance
-import argparse
-
-# load_dotenv("../.env")
 
 GROQ_API_KEY = "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"
 
@@ -40,6 +36,11 @@ GROQ_API_KEY = "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"
 #      "grab_candy":{"repo_id": "1g0rrr/grab_candy", "control_time_s": 10}
 # }
 
+
+def run_streamlit():
+    """Run the Streamlit app in a separate process"""
+    streamlit_path = os.path.join(os.path.dirname(__file__), 'streamlit_app.py')
+    subprocess.Popen(["streamlit", "run", streamlit_path])
 
 def do_control_loop(policy_obj, robot, display_cameras = True):
     control_loop(
@@ -80,6 +81,9 @@ def init_robot():
             engine.say(description)
             engine.runAndWait()
         policy = select_policy(transcript)
+        if policy == "none":
+            continue
+        
         print(policy)
         do_control_loop(policies[policy], robot)
         input("Next query")
@@ -93,7 +97,8 @@ def listen_to_user():
     audio_data = sd.rec(int(duration * sample_rate), 
                        samplerate=sample_rate,
                        channels=1,
-                       dtype=np.int16)
+                       dtype=np.int16,
+                       device=3)
     sd.wait()
     print("Recording finished!")
 
@@ -211,7 +216,9 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    controller = RealRobotController(camera_id=1)
+    controller = RealRobotController(camera_id=2)
+    
+    run_streamlit()
     
     if args.mode == "mind":
         your_app_client_id = '7qSK1Gf5OYPKmITc8m7ek6oD4mUL3XqJ8hWVVGnK'
@@ -222,7 +229,7 @@ if __name__ == "__main__":
         trained_profile_name = 'my-mental-commands' 
         l.start(trained_profile_name, controller)
     else:    
-        for i in range(5):
+        for i in range(1):
             result = controller.llama.chat_completion()
             
             if result["action"] in ["up", "down", "rotate_left", "rotate_right"]:
@@ -230,5 +237,6 @@ if __name__ == "__main__":
             else:
                 print(f"Error {result} is not mapped ")
             
-            time.sleep(1)
-            init_robot()
+            time.sleep(1)            
+        
+        init_robot()

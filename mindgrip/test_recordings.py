@@ -1,12 +1,8 @@
-import torch
 import time
 import streamlit as st
-import threading
-import subprocess
 from transformers import pipeline
 from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
 from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
-
 from llama import LlamaPolicy
 
 leader_arms = {
@@ -39,9 +35,6 @@ follower_arms = {
         ),
     }
 
-def run_streamlit():
-    """Run the Streamlit app in a separate process"""
-    subprocess.Popen(["streamlit", "run", "mindgrip/streamlit_app.py"])
 
 class RealRobotController:
     def __init__(self, camera_id=0):
@@ -98,8 +91,6 @@ class RealRobotController:
         # Add reference to LlamaPolicy for camera access
         self.llama = LlamaPolicy(camera_id)
         
-        # Start Streamlit
-        run_streamlit()
 
     def execute_relative_movement(self, action_name):
         """Execute a relative movement from current position"""
