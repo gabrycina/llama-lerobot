@@ -1,4 +1,4 @@
-# 🤖 Mindgrip: LLM based robotics interfaces
+# 🤖 Gripmind: LLM based robotics interfaces
 
 An open-source project combining [Llama 3.2 Vision model](https://about.fb.com/news/2024/01/llama-3-now-available/), robotic controls and brain computer interfaces to enable intuitive (and accesible!) human-robot interaction. Built on top of open-source projects including [LeRobot](https://github.com/huggingface/lerobot), [Llama](https://github.com/facebookresearch/llama), and [EMOTIV's Cortex API](https://github.com/Emotiv/cortex-v2-example).
 
@@ -18,10 +18,15 @@ An open-source project combining [Llama 3.2 Vision model](https://about.fb.com/n
 - Precise motor control through LeRobot integration
 - Support for complex manipulation tasks
 
+### 🤗 Open-source Contributions
+- 2 fully-trained RL policies openly available [on huggingface](https://www.huggingface.com/fracapuano/moss-cup)
+- 20GB+ of human recorded data, openly shared with the community as [huggingface dataset]([url](https://www.huggingface.com/fracapuano/cup)
+
 ### 🧠 Brain-Computer Interface
 - Direct mind control of robotic arms using EMOTIV EEG headsets
 - Real-time neural signal processing
 - Built on the open Cortex API for BCI integration
+
 
 ## 🚀 Getting Started
 
