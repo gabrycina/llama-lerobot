@@ -1,0 +1,3 @@
+[submodule "mindgrip/cortex-example"]
+	path = mindgrip/cortex-example
+	url = https://github.com/Emotiv/cortex-example.git
