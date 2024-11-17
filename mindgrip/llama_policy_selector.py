@@ -26,6 +26,8 @@ import wave
 import io
 from pathlib import Path
 import glob
+import sys
+from live_advance import LiveAdvance
 
 # load_dotenv("../.env")
 
@@ -205,14 +207,25 @@ if __name__ == "__main__":
     # engine.say("Dai forza voglio sti cazzo di 25k")
     # engine.runAndWait()
     controller = RealRobotController(camera_id=1)
-    for i in range(5):
-        result = controller.llama.chat_completion()
-        
-        if result["action"] in ["up", "down", "rotate_left", "rotate_right"]:
-            controller.handle_command(result["action"])
-        else:
-            print(f"Error {result} is not mapped ")
-        
-        time.sleep(1)
+    
+    mode = "mind"
+    if mode == "mind":
+        your_app_client_id = '7qSK1Gf5OYPKmITc8m7ek6oD4mUL3XqJ8hWVVGnK'
+        your_app_client_secret = 'xNXRm4oadS3NUKv9mOhzzKhbzcW4caesGIvgi3uHaTWA9tTLLBm4WBzzUX1QKe6jLtqrhCrjAE87a3398FzS415prPUlh6cX164wE2WEjqRbrOSQQWugCQPrIVP5ccdI'
 
-    init_robot()
+        l = LiveAdvance(your_app_client_id, your_app_client_secret)
+
+        trained_profile_name = 'my-mental-commands' 
+        l.start(trained_profile_name)
+
+    else:    
+        for i in range(5):
+            result = controller.llama.chat_completion()
+            
+            if result["action"] in ["up", "down", "rotate_left", "rotate_right"]:
+                controller.handle_command(result["action"])
+            else:
+                print(f"Error {result} is not mapped ")
+            
+            time.sleep(1)
+            init_robot()
